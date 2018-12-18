@@ -75,37 +75,31 @@ int check_exists(const char* check_exists)
 	return 1;
 }
 
-
-
-void prepend_header(void);
-
-int main(int argc, char **argv)
+int fsize(FILE* file)
 {
-	printf("tobmp started\n");
-	
-	//Make sure arguments are ok
-	if (argc != 2)
-	{
-		printf("Invalid number of program arguments\n");
-		return 0;
-	}
+	int filesize;
+	fseek(file, 0l, SEEK_END);
+	filesize = ftell(file);
+	rewind(file);
+	return filesize;
+}
+
+int convertToBmp(const char* source, const char* destination)
+{
 	
 	//Open input file to read
 	FILE* binary;
 	
-	binary = fopen(argv[1], "rb");
+	binary = fopen(source, "rb");
 	
 	if (binary == NULL)	
 	{
-		printf("Error %i - %s\n", errno, strerror(errno));
+		printf("Error in convertToBmp %i - %s\n", errno, strerror(errno));
 		return 0;
 	}
 	
 	//Get size of read file
-	int filesize;
-	fseek(binary, 0l, SEEK_END);
-	filesize = ftell(binary);
-	rewind(binary);
+	int filesize = fsize(binary);
 	
 	//If read file is greater than 12MB, leave (maximum image size will be 2048*2048. Files larger than this should be split up & compressed
 	if (filesize > 12 * 1024 * 1024)
@@ -117,7 +111,7 @@ int main(int argc, char **argv)
 	//Copy read file's contents to memory
 	int side_length = getSide(filesize);
 	
-	char* binary_data = (char*)malloc(side_length * side_length * 3);
+	char* binary_data = (char*)malloc(side_length * side_length * 3); //Create array to fit entire pixmap
 	
 	if (binary_data == NULL)
 		return 0;
@@ -127,34 +121,17 @@ int main(int argc, char **argv)
 	//Close read file
 	fclose(binary);
 	
-	//Create new file name by appending the original filename with ".bmp"
-	char* new_file = (char*)malloc(strlen(argv[1]) + 4);
-	
-	if (new_file == NULL)
-		return 0;
-	
-	strcpy(new_file, argv[1]);
-	
-	strcat(new_file, ".bmp");
-	
-	printf("New filename: %s\n", new_file);
-	
 	//Create new file to write to (if file exists, prompt user to overwrite)
-	if (check_exists(new_file))
+	if (check_exists(destination))
 	{
-		printf("Output file %s already exists. Would you like to continue? If you do, the existing file will be overwritten. (Y/N)\n", new_file);
-		char response = getchar();
-		if (response != 'y' && response != 'Y')
-			return 0;
-			
 		//If the file already exists, open to write, then close. this will effectively erase the contents of the current file.
-		fclose(fopen(new_file, "wb"));
+		fclose(fopen(destination, "wb"));
 		
 	}
 	
 	FILE* bitmap;
 	
-	bitmap = fopen(new_file, "ab");
+	bitmap = fopen(destination, "ab");
 	
 	//Modify header
 	setHeader(side_length, side_length);
@@ -170,6 +147,76 @@ int main(int argc, char **argv)
 		
 	//Close write file
 	fclose(bitmap);
+	
+	return 0;
+}
+
+int convertToBinary(const char* source, const char* destination)
+{
+	FILE* bitmap;
+	
+	//Open bitmap file
+	bitmap = fopen(source, "rb");
+	
+	if (bitmap == NULL)	
+	{
+		printf("Error in convertToBinary %i - %s\n", errno, strerror(errno));
+		return 0;
+	}	
+	
+	//Load file into memory
+	int filesize = fsize(bitmap);
+	
+	char* data = (char*)malloc(filesize);
+	
+	fread(data, sizeof(*data), filesize, bitmap);
+	
+	fclose(bitmap);
+	
+	//Get starting address of bitmap data (as per the bitmap header standard)
+	int address = *(int*)&data[10];
+	
+	//Go to starting address, and get the number of bytes in original file
+	int original_size = (unsigned char)data[address] + (unsigned char)data[address + 1] * 256 + (unsigned char)data[address + 2] * 65536;
+	
+	//Save data to file
+	FILE* binary;
+	
+	binary = fopen(destination, "wb");
+	
+	fwrite(&data[address + 3], sizeof(*data), original_size, binary);
+	
+	fclose(binary);
+	
+	return 0;
+}
+
+int main(int argc, char **argv)
+{
+	printf("tobmp started\n");
+	
+	//Validate arguments and see if output file already exists
+	if (argc != 2)
+	{
+		printf("Invalid number of program arguments\n");
+		return 0;
+	}
+	
+	//Create new file name by appending the original filename with ".bmp"
+	char* new_file = (char*)malloc(strlen(argv[1]) + 4);
+	
+	if (new_file == NULL)
+		return 0;
+	
+	strcpy(new_file, argv[1]);
+	
+	strcat(new_file, ".bmp");
+	
+	printf("New filename: %s\n", new_file);
+	
+	convertToBmp(".\\files\\file.zip", ".\\files\\file.zip.bmp");
+	
+	convertToBinary(".\\files\\file.zip.bmp", ".\\files\\out.zip");
 	
 	return 0;
 }

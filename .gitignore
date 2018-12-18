@@ -2,3 +2,4 @@
 file
 *.o
 *.exe
+files/*.*
