@@ -62,8 +62,9 @@ void setHeader(int width, int height)
 //Gets the length of the square side of the output bitmap from the file size
 int getSide(int file_size)
 {
-	int n = ceil(0.5 * log(((double)file_size + 1.0) / 3.0) / log(2.0));
-	return ldexp(1.0, n);
+	int n = ceil(sqrt(file_size / 3.0 + 1.0));
+	n = n - n % 4; //Pad the width and height to make it divisible by 4.
+	return n;
 }
 
 int check_exists(const char* check_exists)
