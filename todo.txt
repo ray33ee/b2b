@@ -1,0 +1,2 @@
+To do list:
+	- Add -q argument that engages quiet mode. This will stop user prompts. THis means that if the output file already exists, it will be overwritten.
