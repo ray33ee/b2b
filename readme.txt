@@ -1,0 +1,1 @@
+Note that we convert to image because text files take up space when uploaded, and copying text wont work (as non text characters may be ignored)

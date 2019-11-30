@@ -9,6 +9,8 @@
 
 #include <math.h> //log, ldexp
 
+// Hint: a file size of 16765487 bytes will convert to an image under 16MB, perfect for google photo storage!
+
 //Array of bytes containing bitmap header
 char Bitmap_Header[] = 
 { 
@@ -63,7 +65,7 @@ void setHeader(int width, int height)
 int getSide(int file_size)
 {
 	int n = ceil(sqrt(file_size / 3.0 + 1.0));
-	n = n - n % 4; //Pad the width and height to make it divisible by 4.
+	n = n + (4 - n % 4) % 4; //Pad the width and height to make it divisible by 4.
 	return n;
 }
 
@@ -107,18 +109,11 @@ int convertToBmp(const char* source, const char* destination)
 	if (binary == NULL)	
 	{
 		printf("Error in convertToBmp %i - %s\n", errno, strerror(errno));
-		return 0;
+		return -1;
 	}
 	
 	//Get size of read file
 	int filesize = fsize(binary);
-	
-	//If read file is greater than 12MB, leave (maximum image size will be 2048*2048. Files larger than this should be split up & compressed
-	if (filesize > 12 * 1024 * 1024)
-	{
-		printf("File size is too large (%i bytes) maximum size is 12MB.", filesize);
-		return 0;
-	}
 	
 	//Copy read file's contents to memory
 	int side_length = getSide(filesize);
@@ -126,24 +121,28 @@ int convertToBmp(const char* source, const char* destination)
 	char* binary_data = (char*)malloc(side_length * side_length * 3); //Create array to fit entire pixmap
 	
 	if (binary_data == NULL)
-		return 0;
+		return -3;
 	
 	fread(binary_data, sizeof(*binary_data), filesize, binary);
 	
 	//Close read file
 	fclose(binary);
-	
+
 	//Create new file to write to (if file exists, prompt user to overwrite)
 	if (check_exists(destination))
 	{
 		//If the file already exists, open to write, then close. this will effectively erase the contents of the current file.
 		fclose(fopen(destination, "wb"));
-		
 	}
 	
 	FILE* bitmap;
 	
 	bitmap = fopen(destination, "ab");
+	
+	//Calculate the total padding size 
+	int padding = (long long)side_length * (long long)side_length * 3 - filesize;
+	
+	printf("Padding size: %i\n", padding);
 	
 	//Modify header
 	setHeader(side_length, side_length);
@@ -152,7 +151,7 @@ int convertToBmp(const char* source, const char* destination)
 	fwrite(Bitmap_Header, sizeof(*binary_data), sizeof(Bitmap_Header), bitmap);
 	
 	//Write size of original file to bitmap in first pixel
-	fwrite(&filesize, 3, 1, bitmap);
+	fwrite(&padding, 3, 1, bitmap);
 	
 	//Write contents of read file to remaining pixels
 	fwrite(binary_data, sizeof(*binary_data), side_length * side_length * 3 - 3, binary);
@@ -176,7 +175,7 @@ int convertToBinary(const char* source, const char* destination)
 	if (bitmap == NULL)	
 	{
 		printf("Error in convertToBinary %i - %s\n", errno, strerror(errno));
-		return 0;
+		return -1;
 	}	
 	
 	//Load file into memory
@@ -191,15 +190,17 @@ int convertToBinary(const char* source, const char* destination)
 	//Get starting address of bitmap data (as per the bitmap header standard)
 	int address = *(int*)&data[10];
 	
-	//Go to starting address, and get the number of bytes in original file
-	int original_size = (unsigned char)data[address] + (unsigned char)data[address + 1] * 256 + (unsigned char)data[address + 2] * 65536;
+	//Go to the first pixel, get the size of padding. Use this to calculate the size of the original file
+	int padding_size = (unsigned char)data[address] + (unsigned char)data[address + 1] * 256 + (unsigned char)data[address + 2] * 65536; //wouldn't it be best to cast first 4 bytes to int, then and with 0xffffff?
+	
+	int original_size = filesize - padding_size - 54;
 	
 	//Save data to file
 	FILE* binary;
 	
 	binary = fopen(destination, "wb");
 	
-	fwrite(&data[address + 3], sizeof(*data), original_size, binary);
+	fwrite(&data[address + 3], sizeof(*data), original_size, binary); //address + 3 to skip first three bytes (which is padding information
 	
 	fclose(binary);
 	
@@ -271,9 +272,7 @@ int  setOption(const char* option)
 }
 
 int main(int argc, char **argv)
-{
-	printf("tobmp started\n");
-	
+{	
 	char* source;
 	char* destination;
 	
@@ -322,8 +321,12 @@ int main(int argc, char **argv)
 			destination = createName(source);		
 	}	
 	
+	//createName() returns null if any of its memory allocations return null
 	if (destination == NULL)
+	{
+		printf("Memory allocation error\n");
 		return 0;
+	}
 	
 	if (check_exists(destination) && _args.prompt == Loud)
 	{
