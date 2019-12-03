@@ -16,5 +16,4 @@ clean :
 	del /q "$(MAIN).o" "$(APP).exe"
 
 run : 
-	$(APP) -bmp .\files\inter.bmp .\files\test.exe
-	$(APP) -bin .\files\test1.exe .\files\inter.bmp
+	$(APP) -bin ".\files\t.bmp"

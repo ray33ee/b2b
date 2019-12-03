@@ -1,3 +1,8 @@
+Version 2.0.0
+	- Conversion to bmp modifies file instead of creating new one, drastically reducing comptation time
+	- Height and width calculated separately, reducing padding size
+	- Bitmaps use 32bpp (instead of 24) increasing data density per pixel
+
 Version 1.0.4
 	- Files larger than 2^24 bytes would not convert properly, this is fixed (we store the padding size not the original size, which is a smaller number and fits in the 3 bytes of the first pixel)
 	- Removed 12MB limit
