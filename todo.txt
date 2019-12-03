@@ -1,2 +1,6 @@
 To do list:
 	- Add -q argument that engages quiet mode. This will stop user prompts. THis means that if the output file already exists, it will be overwritten.
+	- Take correct action if binary file is less than 126 bytes
+	- Test to make sure input bmp is a valid bitmap
+	- Write truncate code so trunc.exe is not needed with Windows
+		- Code for Linux and Windows

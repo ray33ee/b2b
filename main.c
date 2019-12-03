@@ -15,6 +15,9 @@
 
 #define BYTES_PER_PIXEL sizeof(int) // The number of bytes used to represent the length of padding
 
+const char* TRUNC_EXE_PATH = "C:\\trunc.exe ";
+const char* RENAME_EXEC_PATH = "move ";
+
 //Array of bytes containing bitmap header
 char Bitmap_Header[] = 
 { 
@@ -33,10 +36,8 @@ char Bitmap_Header[] =
 
 };
 
+//Head of file is used to store beginning of original file (when converting to bmp) or bitmap header and first pixel (when converting back to binary)
 char File_Head[sizeof(Bitmap_Header) + BYTES_PER_PIXEL];
-
-//Enumerates the nature of the conversion
-enum Direction { BinToBmp, BmpToBin };
 
 //Enumerates verbosity and whether or not the user is to be prompted for input
 enum Prompt { Loud, Quiet };
@@ -44,9 +45,8 @@ enum Prompt { Loud, Quiet };
 //Structure containing the options used 
 struct Options
 {
-	enum Direction direct;
 	enum Prompt prompt;
-} _args = { BinToBmp, Loud };
+} _args = { Loud };
 
 //Resize file at path to size bytes
 void resizefile(const char* path, int size)
@@ -55,11 +55,42 @@ void resizefile(const char* path, int size)
 	char string[100] = "";
 	sprintf(ssize, " %d", size);
 	
-	strcat(strcat(strcat(string, "C:\\trunc.exe "), path), ssize);
+	strcat(strcat(strcat(string, TRUNC_EXE_PATH), path), ssize);
 	
 	system(string);
 	
 	printf("Call: %s\n", string);
+}
+
+void appendfilename(const char* path)
+{
+	char command[150];
+	
+	strcpy(command, RENAME_EXEC_PATH);
+	
+	strcat(strcat(strcat(strcat(command, path), " "), path), ".bmp");
+	
+	printf("Rename: %s\n", command);
+	
+	system(command);
+}
+
+void truncatefilename(const char* path)
+{
+	char command[150];
+	char newpath[150];
+	
+	strcpy(command, RENAME_EXEC_PATH);
+	strcpy(newpath, path);
+	
+	newpath[strlen(path) - 4] = '\0'; //Truncate a string the fun way!
+	
+	strcat(strcat(strcat(command, path), " "), newpath);
+	
+	printf("Rename: %s\n", newpath);
+	
+	system(command);
+	
 }
 
 // Sets a 4-byte value at a given offset in the header
@@ -87,23 +118,6 @@ int getWidth(int file_size)
 int getHeight(int file_size, int width)
 {
 	return ceil(((float)file_size + 4.0) / (width * 4));
-}
-
-int check_exists(const char* check_exists)
-{
-	FILE* fp;
-	fp = fopen(check_exists, "rb");
-	
-	if (fp == NULL)
-	{
-		if (errno == 2)
-			return 0;
-		return 1; //????????????????????????? if fopen fails, but its not an error 2 (file not foiund) is this the correct outcome?
-	}
-	
-	fclose(fp);
-	
-	return 1;
 }
 
 //Get the size of the file
@@ -186,6 +200,7 @@ int convertToBmp(const char* source)
 	resizefile(source, pixmap_size + sizeof(Bitmap_Header));
 	
 	//Add .bmp to filename
+	appendfilename(source);
 	
 	return 0;
 }
@@ -206,10 +221,14 @@ int convertToBinary(const char* source)
 		return -1;
 	}	
 	
-	//Load file into memory
+	//Load bitmap header into memory
 	int filesize = fsize(bitmap);
 	
 	fread(File_Head, sizeof(File_Head), 1, bitmap);
+	
+	//Perform some tests to make sure file is valid bitmap
+		// Check padding isnt larger than pixmap
+		// Check first few characters are BM
 	
 	//Get starting address of bitmap data (as per the bitmap header standard)
 	int address = *(int*)&File_Head[10];
@@ -243,6 +262,7 @@ int convertToBinary(const char* source)
 	resizefile(source, offset);
 	
 	//Rename file
+	truncatefilename(source);
 	
 	return 0;
 }
@@ -252,56 +272,14 @@ int isOption(const char* arg)
 	return (int)(arg[0] == '-');
 }
 
-//If no second path is supplied, create one by appending or removing *.bmp
-char* createName(const char* source)
-{
-	char* new_file_name;
-	
-	if (_args.direct == BinToBmp)
-	{
-		new_file_name = (char*)malloc(strlen(source) + 4);
-	
-		if (new_file_name == NULL)
-			return NULL;
-		
-		strcpy(new_file_name, source);
-		
-		strcat(new_file_name, ".bmp");
-	}
-	else
-	{
-		new_file_name = (char*)malloc(strlen(source) - 3);
-		
-		const char* sub = strstr(source, ".bmp");
-		
-		if (sub == NULL)
-		{
-			printf("%s is not a valid bitmap, was not been created by tobmp, or does not exist.\n", source);
-			return NULL;
-		}
-		
-		strncpy(new_file_name, source, (int)(sub - source));
-		
-		new_file_name[strlen(source) - 4] = '\0';
-		
-	}
-	
-	return new_file_name;
-}
-
 int  setOption(const char* option)
 {
-	if (strcmp(option, "-bmp") == 0)
-	{
-		_args.direct = BinToBmp;
-	}
-	else if (strcmp(option, "-bin") == 0)
-	{
-		_args.direct = BmpToBin;
-	}
-	else if (strcmp(option, "-q") == 0)
+	if (strcmp(option, "-q") == 0)
 	{
 		_args.prompt = Quiet;
+	} else if (strcmp(option, "-l") == 0)
+	{
+		_args.prompt = Loud;
 	}
 	else
 	{
@@ -331,23 +309,34 @@ int main(int argc, char **argv)
 		source = argv[1];
 		
 	}
-	else if (argc >= 3) // two args. either 2 paths, or one option one path.
-	{
-		
+	else if (argc >= 3) // two args. Option and path, or path and option
+	{		
+		if (isOption(argv[2]))
+		{
+			printf("Options must be listed before path.\n");
+			return 0;
+		}
 		
 		setOption(argv[1]);
 		source = argv[2];		
 	}	
 	
-	
-	printf("Direction  : %s\n", (_args.direct == BinToBmp ? "Bin to Bmp" : "Bmp to Bin"));
-	printf("Prompt     : %s\n", (_args.prompt == Quiet ? "Quiet" : "Loud"));
 	printf("Source     : %s\n", source);
+	printf("Prompt     : %s\n", (_args.prompt == Quiet ? "Quiet" : "Loud"));
 	
-	if (_args.direct == BinToBmp)
-		convertToBmp(source);
-	else
+	//Get last 4 characters of source as string
+	char* sub = &source[strlen(source) - 4];
+	
+	if (strcmp(sub, ".bmp") == 0)
+	{
+		printf("Direction  : Bmp to Bin\n");
 		convertToBinary(source);
+	}
+	else
+	{
+		printf("Direction  : Bin to Bmp\n");
+		convertToBmp(source);
+	}
 		
 	printf("Conversion complete\n");
 	
