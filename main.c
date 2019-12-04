@@ -11,33 +11,65 @@
 
 #include <stdlib.h> //system
 
+#include <stdint.h> //uint32_t, uint16_t
+
 // Hint: a file size of 16765487 bytes will convert to an image under 16MB, perfect for google photo storage!
 
-#define BYTES_PER_PIXEL sizeof(int) // The number of bytes used to represent the length of padding
+#define BYTES_PER_PIXEL (4) // The number of bytes used to represent the length of padding
 
 const char* TRUNC_EXE_PATH = "C:\\trunc.exe ";
 const char* RENAME_EXEC_PATH = "move ";
 
-//Array of bytes containing bitmap header
-char Bitmap_Header[] = 
-{ 
+//Force compiler to use 2 byte packing
+#pragma pack(2)
+struct BitmapV4Header
+{
+	//BMP Header
+	uint16_t ID;
+	uint32_t fileSize;
+	uint32_t UNUSED1;
+	uint32_t offset;
 	
-	0x42, 0x4D, 
-	0x9A, 0x00, 0x00, 0x00, //Size of BMP file
-	0x00, 0x00, 0x00, 0x00, 
-	0x7A, 0x00, 0x00, 0x00, //Offset where pixelarray begins
-	//End of BMP header, beginning of DIB header
-	0x6C, 0x00, 0x00, 0x00, //Number of bytes in DIB header
-	0x04, 0x00, 0x00, 0x00, //Width
-	0x02, 0x00, 0x00, 0x00, //Height
-	0x01, 0x00, 0x20, 0x00, 0x03, 0x00, 0x00, 0x00, 
-	0x20, 0x00, 0x00, 0x00, //Size of bitmap data
-	0x13, 0x0B, 0x00, 0x00, 0x13, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x20, 0x6E, 0x69, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	//DIB Header
+	uint32_t DIBSize;
+	uint32_t width;
+	uint32_t height;
+	uint16_t pbnlanes;
+	uint16_t bpp;
+	uint32_t compression;
+	uint32_t pixmapSize;
+	uint32_t horizontal;
+	uint32_t vertical; 
+	uint32_t palette;
+	uint32_t important;
+	uint32_t redMask;
+	uint32_t greenMask;
+	uint32_t blueMask;
+	uint32_t alphaMask;
+	uint32_t win;
+	uint8_t UNUSED2[36];
+	uint32_t redGamma;
+	uint32_t greenGamma;
+	uint32_t blueGamma;
+	
+} 
+//Template header
+Bitmap_Header = { 0x4D42, 0, 0, 0x7A, 0x6C, 0, 0, 1, 32, 3, 0, 4000, 4000, 0, 0, 0xFF0000, 0xFF00, 0xFF, 0xFF000000, 0x57696E20, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, 0, 0, 0 };
 
-};
+struct BTBHeader
+{
+	uint32_t paddingSize;
+	uint32_t signature[4];
+} btbHeader = { 0, {0, 0, 0, 0} };
 
 //Head of file is used to store beginning of original file (when converting to bmp) or bitmap header and first pixel (when converting back to binary)
-char File_Head[sizeof(Bitmap_Header) + BYTES_PER_PIXEL];
+
+#pragma pack(2)
+struct CompleteHeader
+{
+	struct BitmapV4Header bmp;
+	struct BTBHeader btb;
+} completeHeader;
 
 //Enumerates verbosity and whether or not the user is to be prompted for input
 enum Prompt { Loud, Quiet };
@@ -47,6 +79,7 @@ struct Options
 {
 	enum Prompt prompt;
 } _args = { Loud };
+
 
 //Resize file at path to size bytes
 void resizefile(const char* path, int size)
@@ -59,7 +92,9 @@ void resizefile(const char* path, int size)
 	
 	system(string);
 	
+#ifdef DEBUG
 	printf("Call: %s\n", string);
+#endif
 }
 
 void appendfilename(const char* path)
@@ -70,9 +105,11 @@ void appendfilename(const char* path)
 	
 	strcat(strcat(strcat(strcat(command, path), " "), path), ".bmp");
 	
-	printf("Rename: %s\n", command);
-	
 	system(command);
+	
+#ifdef DEBUG
+	printf("Rename: %s\n", command);
+#endif
 }
 
 void truncatefilename(const char* path)
@@ -87,37 +124,24 @@ void truncatefilename(const char* path)
 	
 	strcat(strcat(strcat(command, path), " "), newpath);
 	
+#ifdef DEBUG
 	printf("Rename: %s\n", newpath);
+#endif
 	
 	system(command);
 	
 }
 
-// Sets a 4-byte value at a given offset in the header
-void setValue(char* head, int value, int offset)
-{
-	*(int*)(head + offset) = value;
-}
-
-//Sets the attributes in the header
-void setHeader(int width, int height)
-{
-	setValue(Bitmap_Header, width * height * 3 + sizeof(Bitmap_Header), 2); //Write bmp size (image size + size of header) to offset 2
-	setValue(Bitmap_Header, width, 18); //Write bmp width to offset 18
-	setValue(Bitmap_Header, height, 22); //Write bmp height to offset 22
-	setValue(Bitmap_Header, width * height * 3, 34); //Write image size, in bytes (width * height * 3) to offset 34
-}
-
-//Gets the length of the square side of the output bitmap from the file size
+//Calculate the width of the pixmap from the file size
 int getWidth(int file_size)
 {
-	return ceil(sqrt(file_size / (float)BYTES_PER_PIXEL + 1.0));
+	return ceil(sqrt((float)(file_size + sizeof(btbHeader)) / BYTES_PER_PIXEL));
 }
 
-//Gets the length of the square side of the output bitmap from the file size
+//Calculate the hright of the pixmap from the file size
 int getHeight(int file_size, int width)
 {
-	return ceil(((float)file_size + 4.0) / (width * 4));
+	return ceil(((float)file_size + sizeof(btbHeader)) / (width * BYTES_PER_PIXEL));
 }
 
 //Get the size of the file
@@ -154,44 +178,59 @@ int convertToBmp(const char* source)
 	
 	int side_height = getHeight(filesize, side_width);
 	
+#ifdef DEBUG
 	printf("Pixmap size: %i x %i\n", side_width, side_height);
+#endif
 	
 	//Calculate padding required for bitmap
-	long long pixmap_size = (long long)side_width * (long long)side_height * 4;
+	long long pixmap_size = (long long)side_width * (long long)side_height * BYTES_PER_PIXEL;
 	
-	int pad_size = pixmap_size - filesize - 4;
+	btbHeader.paddingSize = pixmap_size - filesize - sizeof(btbHeader);
 	
-	printf("Padding size: %i\n", pad_size);
+#ifdef DEBUG
+	printf("Padding size: %i\n", btbHeader.paddingSize);
+#endif
 	
+#ifdef DEBUG
 	printf("File size: %i\n", filesize);
+#endif
 	
-	//Test to make sure file size > sizeof(File_Head)
+	//Test to make sure file size > sizeof(completeHeader)
 	
-	if (filesize < 127)		
+	if (filesize < sizeof(completeHeader))		
 	{
 		
 	}
 	
-	//Copy first 126 bytes (size of File_Head) from original file into memory
-	fread(File_Head, sizeof(File_Head), 1, binary);
+	//Copy the beginning bytes (size of File_Head) from original file into memory
+	fread(&completeHeader, sizeof(completeHeader), 1, binary);
+	
+	//Verify copy
 	
 	//Append the copied bytes to file
 	fseek(binary, 0, SEEK_END);
-	fwrite(File_Head,  sizeof(File_Head), 1, binary);
+	fwrite(&completeHeader,  sizeof(completeHeader), 1, binary);
 	
-	printf("Head file: %i\n", sizeof(File_Head));
+	//Verify write
+	
+#ifdef DEBUG
+	printf("Head file: %i\n", sizeof(completeHeader));
+#endif
 	
 	//Modify BMP header
-	setHeader(side_width, side_height);
+	Bitmap_Header.fileSize = pixmap_size + sizeof(Bitmap_Header);
+	Bitmap_Header.width = side_width;
+	Bitmap_Header.height = side_height;
+	Bitmap_Header.pixmapSize = pixmap_size;
 	
 	//Go to beginning of stream
 	fseek(binary, 0, SEEK_SET);
 	
 	//Write BMP header to file
-	fwrite(Bitmap_Header, sizeof(Bitmap_Header), 1, binary);
+	fwrite(&Bitmap_Header, sizeof(Bitmap_Header), 1, binary);
 	
 	//Write size of padding to bitmap in first pixel
-	fwrite(&pad_size, 1, BYTES_PER_PIXEL, binary);
+	fwrite(&btbHeader, 1, sizeof(btbHeader), binary);
 		
 	//Close write file
 	fclose(binary);
@@ -224,36 +263,63 @@ int convertToBinary(const char* source)
 	//Load bitmap header into memory
 	int filesize = fsize(bitmap);
 	
-	fread(File_Head, sizeof(File_Head), 1, bitmap);
-	
+	fread(&completeHeader, sizeof(completeHeader), 1, bitmap);	
+		
 	//Perform some tests to make sure file is valid bitmap
-		// Check padding isnt larger than pixmap
-		// Check first few characters are BM
-	
-	//Get starting address of bitmap data (as per the bitmap header standard)
-	int address = *(int*)&File_Head[10];
+	// Check first few characters are BM
+	if (completeHeader.bmp.ID != Bitmap_Header.ID)
+	{
+		printf("Error: Invalid bitmap file (No BM signature)\n");
+		return 1;
+	}
 	
 	//Go to the first pixel, get the size of padding
-	int padding_size = *(int*)&File_Head[address];
+	int padding_size = completeHeader.btb.paddingSize;
 	
+	printf("Padding: %i\n", padding_size);
+
+	
+	if (completeHeader.bmp.DIBSize != Bitmap_Header.DIBSize)
+	{
+		printf("Bitmap file not supported\n");
+		return 1;
+	}
+	
+#ifdef DEBUG
+	printf("Padding: %i, Pixmap: %i\n", padding_size, completeHeader.bmp.pixmapSize);
+#endif
+	
+	// Check padding isnt larger than pixmap
+	if (padding_size >= completeHeader.bmp.pixmapSize)
+	{
+		printf("Error: Invalid bitmap file (bad padding value)\n");
+		return 1;
+	}
+	
+#ifdef DEBUG
 	printf("Padding size: %i\n", padding_size);
+#endif
+
+	//Check signature
 	
 	//Get the location of the head
-	int offset = filesize - padding_size - sizeof(File_Head);
+	int offset = filesize - padding_size - sizeof(completeHeader);
 	
+#ifdef DEBUG
 	printf("Offset: %i\n", offset);
+#endif
 	
 	//Go to the head
 	fseek(bitmap, offset, SEEK_SET);
 	
 	//Read the head
-	fread(File_Head, sizeof(File_Head), 1, bitmap);
+	fread(&completeHeader, sizeof(completeHeader), 1, bitmap);
 	
 	//Go to beginning
 	fseek(bitmap, 0, SEEK_SET);
 	
 	//Write the head back to the beginning
-	fwrite(File_Head, sizeof(File_Head), 1, bitmap);
+	fwrite(&completeHeader, sizeof(completeHeader), 1, bitmap);
 	
 	//Close file
 	fclose(bitmap);
@@ -273,7 +339,7 @@ int isOption(const char* arg)
 }
 
 int  setOption(const char* option)
-{
+{	
 	if (strcmp(option, "-q") == 0)
 	{
 		_args.prompt = Quiet;
@@ -293,17 +359,18 @@ int main(int argc, char **argv)
 {	
 	char* source;
 	
+	
 	if (argc == 1) //No command line arguments supplied, error.
 	{
 		printf("No input file. Program terminated.\n");
-		return 0;
+		return 1;
 	}
 	else if (argc == 2) //One argument supplied.
 	{
 		if (isOption(argv[1]))
 		{
 			printf("At least one path must be supplied\n");
-			return 0;
+			return 1;
 		}
 		
 		source = argv[1];
@@ -314,28 +381,38 @@ int main(int argc, char **argv)
 		if (isOption(argv[2]))
 		{
 			printf("Options must be listed before path.\n");
-			return 0;
+			return 1;
 		}
 		
 		setOption(argv[1]);
 		source = argv[2];		
 	}	
 	
+#ifdef DEBUG
 	printf("Source     : %s\n", source);
 	printf("Prompt     : %s\n", (_args.prompt == Quiet ? "Quiet" : "Loud"));
+#endif
 	
 	//Get last 4 characters of source as string
 	char* sub = &source[strlen(source) - 4];
 	
+	int result;
+	
 	if (strcmp(sub, ".bmp") == 0)
 	{
 		printf("Direction  : Bmp to Bin\n");
-		convertToBinary(source);
+		result = convertToBinary(source);
 	}
 	else
 	{
 		printf("Direction  : Bin to Bmp\n");
-		convertToBmp(source);
+		result = convertToBmp(source);
+	}
+	
+	if (result)
+	{
+		printf("Conversion failed.\n");
+		return 1;
 	}
 		
 	printf("Conversion complete\n");

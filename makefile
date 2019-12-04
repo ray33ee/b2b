@@ -1,6 +1,6 @@
 CC = gcc
 
-FLAGS = -Wall
+FLAGS = -Wall -D DEBUG
 
 APP = tobmp
 

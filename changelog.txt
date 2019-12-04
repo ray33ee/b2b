@@ -1,3 +1,11 @@
+Version 2.0.2
+	- Size of bmp file and pixmap entries in bitmap header were calculated incorrectly
+	- BMP header and BTB headers are now expressed as structures
+	- Size-critical values are now declared as uintN_t
+	- Magic constants now replaced with nammed variables
+	- DEBUG preprocessor directive now added
+	- Certain variables renamed for clarity
+
 Version 2.0.1
 	- Unused code removed
 	- Can deduce conversion based on file extension

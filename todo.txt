@@ -2,5 +2,11 @@ To do list:
 	- Add -q argument that engages quiet mode. This will stop user prompts. THis means that if the output file already exists, it will be overwritten.
 	- Take correct action if binary file is less than 126 bytes
 	- Test to make sure input bmp is a valid bitmap
+		- Make sure padding value isnt too large
+		- Make sure width, height, bpp, pixmap size, bmp and dib header size and actual size all add up.
+		- Implement 4-pixel signature and check that too
 	- Write truncate code so trunc.exe is not needed with Windows
 		- Code for Linux and Windows
+	- Implement file_header and bitmap header as structs for easier access?
+	- When copying date in file, verify data was copied correctly.
+	
