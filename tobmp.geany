@@ -29,10 +29,10 @@ long_line_column=72
 
 [files]
 current_page=2
-FILE_NAME_0=8280;C;0;EUTF-8;1;1;0;E%3A%5CSoftware%20Projects%5CGeany%5Ctobmp%5Cmain.c;0;4
-FILE_NAME_1=243;Make;0;EUTF-8;1;1;0;E%3A%5CSoftware%20Projects%5CGeany%5Ctobmp%5Cmakefile;0;4
-FILE_NAME_2=370;None;0;EUTF-8;1;1;0;E%3A%5CSoftware%20Projects%5CGeany%5Ctobmp%5Ctodo.txt;0;4
-FILE_NAME_3=456;None;0;EUTF-8;1;1;0;E%3A%5CSoftware%20Projects%5CGeany%5Ctobmp%5Cchangelog.txt;0;4
+FILE_NAME_0=9353;C;0;EUTF-8;1;1;0;E%3A%5CSoftware%20Projects%5CGeany%5Ctobmp%5Cmain.c;0;4
+FILE_NAME_1=77;Make;0;EUTF-8;1;1;0;E%3A%5CSoftware%20Projects%5CGeany%5Ctobmp%5Cmakefile;0;4
+FILE_NAME_2=186;None;0;EUTF-8;1;1;0;E%3A%5CSoftware%20Projects%5CGeany%5Ctobmp%5Ctodo.txt;0;4
+FILE_NAME_3=167;None;0;EUTF-8;1;1;0;E%3A%5CSoftware%20Projects%5CGeany%5Ctobmp%5Cchangelog.txt;0;4
 
 [build-menu]
 CFT_00_LB=_Compile

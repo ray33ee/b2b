@@ -1,3 +1,10 @@
+Version 2.0.3
+	- Added comments 
+	- Completed bitmap checks for bitmap to binary conversion
+	- Binary to bitmap now accepts tiny files
+	- We now verify read/writes
+	- Files are truncated with via windows.h functions, instead of trunc.exe.
+
 Version 2.0.2
 	- Size of bmp file and pixmap entries in bitmap header were calculated incorrectly
 	- BMP header and BTB headers are now expressed as structures

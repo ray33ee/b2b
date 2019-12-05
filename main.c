@@ -13,31 +13,30 @@
 
 #include <stdint.h> //uint32_t, uint16_t
 
-// Hint: a file size of 16765487 bytes will convert to an image under 16MB, perfect for google photo storage!
+#include <windows.h>
 
-#define BYTES_PER_PIXEL (4) // The number of bytes used to represent the length of padding
+const int BYTES_PER_PIXEL = 4; // The number of bytes used to represent the length of padding
 
-const char* TRUNC_EXE_PATH = "C:\\trunc.exe ";
-const char* RENAME_EXEC_PATH = "move ";
+const char* RENAME_EXEC_PATH = "move "; //Used to rename files
 
 //Force compiler to use 2 byte packing
 #pragma pack(2)
 struct BitmapV4Header
 {
 	//BMP Header
-	uint16_t ID;
-	uint32_t fileSize;
+	uint16_t ID; 			//'BM' at beginning
+	uint32_t fileSize;		//Total file size
 	uint32_t UNUSED1;
-	uint32_t offset;
+	uint32_t offset;		//Starting address of pixmap
 	
 	//DIB Header
-	uint32_t DIBSize;
-	uint32_t width;
-	uint32_t height;
+	uint32_t DIBSize;		//Size of DIB header
+	uint32_t width;			//Width of pixmap
+	uint32_t height;		//height of pixmap
 	uint16_t pbnlanes;
-	uint16_t bpp;
+	uint16_t bpp;			//Bits per pixel
 	uint32_t compression;
-	uint32_t pixmapSize;
+	uint32_t pixmapSize;	//Size of pixmap, in bytes
 	uint32_t horizontal;
 	uint32_t vertical; 
 	uint32_t palette;
@@ -58,12 +57,11 @@ Bitmap_Header = { 0x4D42, 0, 0, 0x7A, 0x6C, 0, 0, 1, 32, 3, 0, 4000, 4000, 0, 0,
 
 struct BTBHeader
 {
-	uint32_t paddingSize;
-	uint32_t signature[4];
-} btbHeader = { 0, {0, 0, 0, 0} };
+	uint32_t paddingSize; 	//Size of padding, in bytes
+	uint32_t signature[4];	//4 pixel signature, stamped into every bitmap
+} btbHeader = { 0, {0x6FAFEC0D,  0x7EF10C44, 0x68E85B0B, 0x9C0FB9EF } };
 
-//Head of file is used to store beginning of original file (when converting to bmp) or bitmap header and first pixel (when converting back to binary)
-
+//Head of file is used to store beginning of original file (when converting to bmp) or bitmap header and btb header (when converting back to binary)
 #pragma pack(2)
 struct CompleteHeader
 {
@@ -84,17 +82,29 @@ struct Options
 //Resize file at path to size bytes
 void resizefile(const char* path, int size)
 {
-	char ssize[20];
-	char string[100] = "";
-	sprintf(ssize, " %d", size);
+
+	//Get file handle for path
+	HANDLE file = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	
-	strcat(strcat(strcat(string, TRUNC_EXE_PATH), path), ssize);
+	if (file == INVALID_HANDLE_VALUE)
+		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
 	
-	system(string);
 	
-#ifdef DEBUG
-	printf("Call: %s\n", string);
-#endif
+	//Set file pointer to new file size
+	if (SetFilePointer(file, size, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER)
+		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
+	
+	
+	//Set end of file to position of file pointer
+	if (!SetEndOfFile(file))
+		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
+	
+	
+	//Close file
+	if (!CloseHandle(file))
+		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
+	
+
 }
 
 void appendfilename(const char* path)
@@ -195,21 +205,32 @@ int convertToBmp(const char* source)
 	printf("File size: %i\n", filesize);
 #endif
 	
-	//Test to make sure file size > sizeof(completeHeader)
-	
+	//Extend file if smaller than sizeof(completeHeader)
 	if (filesize < sizeof(completeHeader))		
 	{
-		
+		fclose(binary);
+		resizefile(source, sizeof(completeHeader));
+		fopen(source, "rb+");
 	}
 	
 	//Copy the beginning bytes (size of File_Head) from original file into memory
-	fread(&completeHeader, sizeof(completeHeader), 1, binary);
-	
-	//Verify copy
+	fread(&completeHeader, 1, sizeof(completeHeader), binary);
+	if (ferror(binary))
+	{
+		printf("Error: Could not read first block for\n");
+		return 1;
+	}
 	
 	//Append the copied bytes to file
 	fseek(binary, 0, SEEK_END);
+	
 	fwrite(&completeHeader,  sizeof(completeHeader), 1, binary);
+	if (ferror(binary))
+	{
+		printf("Error: Could not append first block\n");
+		return 1;
+	}
+
 	
 	//Verify write
 	
@@ -228,9 +249,15 @@ int convertToBmp(const char* source)
 	
 	//Write BMP header to file
 	fwrite(&Bitmap_Header, sizeof(Bitmap_Header), 1, binary);
-	
+
 	//Write size of padding to bitmap in first pixel
-	fwrite(&btbHeader, 1, sizeof(btbHeader), binary);
+	fwrite(&btbHeader, sizeof(btbHeader), 1, binary);
+	
+	if (ferror(binary))
+	{
+		printf("Error: Could not write BMP or BTB headers\n");
+		return 1;
+	}
 		
 	//Close write file
 	fclose(binary);
@@ -263,69 +290,106 @@ int convertToBinary(const char* source)
 	//Load bitmap header into memory
 	int filesize = fsize(bitmap);
 	
-	fread(&completeHeader, sizeof(completeHeader), 1, bitmap);	
+	fread(&completeHeader, sizeof(completeHeader), 1, bitmap);
+	
+	if (ferror(bitmap))
+	{
+		printf("Error: Could not read bitmap header\n");
+		return 1;
+	}
+	
+	//Get the size of padding
+	int padding_size = completeHeader.btb.paddingSize;
+	
+#ifdef DEBUG
+	printf("Padding: %i\n", padding_size);
+#endif
 		
-	//Perform some tests to make sure file is valid bitmap
-	// Check first few characters are BM
+	//Perform some tests to make sure file is valid BTB bitmap
+	//		Check first few characters are BM
 	if (completeHeader.bmp.ID != Bitmap_Header.ID)
 	{
 		printf("Error: Invalid bitmap file (No BM signature)\n");
 		return 1;
 	}
 	
-	//Go to the first pixel, get the size of padding
-	int padding_size = completeHeader.btb.paddingSize;
-	
-	printf("Padding: %i\n", padding_size);
-
-	
+	//		Check the DIB size is correct, as toBMP uses only Bitmap header v4
 	if (completeHeader.bmp.DIBSize != Bitmap_Header.DIBSize)
 	{
 		printf("Bitmap file not supported\n");
 		return 1;
 	}
 	
-#ifdef DEBUG
-	printf("Padding: %i, Pixmap: %i\n", padding_size, completeHeader.bmp.pixmapSize);
-#endif
-	
-	// Check padding isnt larger than pixmap
+	//		Check padding isnt larger than pixmap
 	if (padding_size >= completeHeader.bmp.pixmapSize)
 	{
 		printf("Error: Invalid bitmap file (bad padding value)\n");
 		return 1;
 	}
-	
-#ifdef DEBUG
-	printf("Padding size: %i\n", padding_size);
-#endif
 
-	//Check signature
+	//		Check signature
+	if (memcmp(&completeHeader.btb.signature, &btbHeader.signature, sizeof(btbHeader.signature)))
+	{
+		printf("Error: Invalid bitmap file (bad BTB signature)\n");
+		return 1;
+	}
 	
-	//Get the location of the head
-	int offset = filesize - padding_size - sizeof(completeHeader);
+	//		Check to make sure width, height, bpp, pixmap size, bmp and dib header size and actual size all add up
+	
+	int calculatedSize = completeHeader.bmp.width * completeHeader.bmp.height * (completeHeader.bmp.bpp / 8) + completeHeader.bmp.DIBSize + 14;
+	
+	if (calculatedSize != filesize || completeHeader.bmp.fileSize != filesize)
+	{
+		printf("Error: Invalid bitmap file (bad bitmap metadata)\n");
+		return 1;
+	}
+	
+	
+	//Get the location of the head and  the size of the original file
+	int headLocation = filesize - padding_size - sizeof(completeHeader);
+	int originalSize = headLocation;
+	
+	if (originalSize < sizeof(completeHeader)) //If the original size is smaller than the header, then the headLocation must be at the end of the completeHeader
+		headLocation = sizeof(completeHeader);
 	
 #ifdef DEBUG
-	printf("Offset: %i\n", offset);
+	printf("Head Location: %i\n", headLocation);
 #endif
 	
 	//Go to the head
-	fseek(bitmap, offset, SEEK_SET);
+	fseek(bitmap, headLocation, SEEK_SET);
 	
 	//Read the head
-	fread(&completeHeader, sizeof(completeHeader), 1, bitmap);
+	int bytesRead = fread(&completeHeader, 1, sizeof(completeHeader), bitmap);
+	
+	
+	if (ferror(bitmap))
+	{
+		printf("Error: Could not read head\n");
+		return 1;
+	}
+	
+	printf("Bytes read: %i\n", bytesRead);
+	
+	//Verify read
 	
 	//Go to beginning
 	fseek(bitmap, 0, SEEK_SET);
 	
 	//Write the head back to the beginning
-	fwrite(&completeHeader, sizeof(completeHeader), 1, bitmap);
+	fwrite(&completeHeader, 1, bytesRead, bitmap);
+	
+	if (ferror(bitmap))
+	{
+		printf("Error: Could not write head to beginning\n");
+		return 1;
+	}
 	
 	//Close file
 	fclose(bitmap);
 	
 	//Truncate file to remove padding
-	resizefile(source, offset);
+	resizefile(source, originalSize);
 	
 	//Rename file
 	truncatefilename(source);
@@ -358,6 +422,7 @@ int  setOption(const char* option)
 int main(int argc, char **argv)
 {	
 	char* source;
+	
 	
 	
 	if (argc == 1) //No command line arguments supplied, error.
