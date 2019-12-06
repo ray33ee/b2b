@@ -1,11 +1,6 @@
 To do list:
 	- Add -q argument that engages quiet mode. This will stop user prompts. THis means that if the output file already exists, it will be overwritten.
-	- Write truncate code so trunc.exe is not needed with Windows
 	- Write code that works for Linux and Windows
-	
-Ideas and such:
+	- Test code on Linux and windows
 
-	- The only two platform dependent functions are
-		- File truncate - This has a very simple linux implementation, but in windows this is more complex.
-		- File renaming - This can be achieved using 'move' in windows and 'mv' on linux.
-	
+

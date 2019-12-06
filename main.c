@@ -1,5 +1,5 @@
 
-#include <stdio.h> //Printf, FILE
+#include <stdio.h> //Printf, FILE, rename
 
 #include <errno.h> //Error numbers for file handling
 
@@ -13,11 +13,16 @@
 
 #include <stdint.h> //uint32_t, uint16_t
 
+//Platform specific headers, used for file truncation and renaming
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <unistd.h>
+#include <errno.h>
+#endif
 
 const int BYTES_PER_PIXEL = 4; // The number of bytes used to represent the length of padding
 
-const char* RENAME_EXEC_PATH = "move "; //Used to rename files
 
 //Force compiler to use 2 byte packing
 #pragma pack(2)
@@ -55,6 +60,7 @@ struct BitmapV4Header
 //Template header
 Bitmap_Header = { 0x4D42, 0, 0, 0x7A, 0x6C, 0, 0, 1, 32, 3, 0, 4000, 4000, 0, 0, 0xFF0000, 0xFF00, 0xFF, 0xFF000000, 0x57696E20, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, 0, 0, 0 };
 
+//Header containing information specific to the toBmp conversion
 struct BTBHeader
 {
 	uint32_t paddingSize; 	//Size of padding, in bytes
@@ -79,67 +85,85 @@ struct Options
 } _args = { Loud };
 
 
-//Resize file at path to size bytes
-void resizefile(const char* path, int size)
+//Platform independent function to resize file at path to size bytes
+int resizefile(const char* path, int size)
 {
-
+#ifdef _WIN32
 	//Get file handle for path
 	HANDLE file = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	
 	if (file == INVALID_HANDLE_VALUE)
+	{
 		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
-	
+		return 1;
+	}
 	
 	//Set file pointer to new file size
 	if (SetFilePointer(file, size, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER)
+	{
 		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
-	
+		return 1;
+	}
 	
 	//Set end of file to position of file pointer
 	if (!SetEndOfFile(file))
+	{
 		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
-	
+		return 1;
+	}
 	
 	//Close file
 	if (!CloseHandle(file))
+	{
 		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
-	
+		return 1;
+	}
 
-}
-
-void appendfilename(const char* path)
-{
-	char command[150];
+#else
+	if (!truncate(path, size))
+	{
+		printf("Error: Linux call to truncate() failed with error code %i - %s\n", errno, strerror(errno));
+		return 1
+	}
 	
-	strcpy(command, RENAME_EXEC_PATH);
-	
-	strcat(strcat(strcat(strcat(command, path), " "), path), ".bmp");
-	
-	system(command);
-	
-#ifdef DEBUG
-	printf("Rename: %s\n", command);
 #endif
+
+	return 0;
+
 }
 
-void truncatefilename(const char* path)
+int appendfilename(const char* path)
 {
-	char command[150];
+	char new[150];
+	
+	strcpy(new, path);
+	strcat(new, ".bmp");
+	
+	if (!rename(path, new))
+	{
+		printf("Error: Could not append file name. Error %i - %s\n", errno, strerror(errno));
+		return 1;
+	}
+	
+	return 0;
+	
+}
+
+int truncatefilename(const char* path)
+{
 	char newpath[150];
 	
-	strcpy(command, RENAME_EXEC_PATH);
 	strcpy(newpath, path);
 	
-	newpath[strlen(path) - 4] = '\0'; //Truncate a string the fun way!
+	newpath[strlen(path) - 4] = '\0'; //Truncate a string the fun way!	
 	
-	strcat(strcat(strcat(command, path), " "), newpath);
+	if (!rename(path, newpath))
+	{
+		printf("Error: Could not truncate file name. Error %i - %s\n", errno, strerror(errno));
+		return 1;
+	}
 	
-#ifdef DEBUG
-	printf("Rename: %s\n", newpath);
-#endif
-	
-	system(command);
-	
+	return 0;
 }
 
 //Calculate the width of the pixmap from the file size
@@ -209,7 +233,10 @@ int convertToBmp(const char* source)
 	if (filesize < sizeof(completeHeader))		
 	{
 		fclose(binary);
-		resizefile(source, sizeof(completeHeader));
+		if (resizefile(source, sizeof(completeHeader)))
+		{
+			return 1;
+		}
 		fopen(source, "rb+");
 	}
 	
@@ -230,15 +257,12 @@ int convertToBmp(const char* source)
 		printf("Error: Could not append first block\n");
 		return 1;
 	}
-
-	
-	//Verify write
 	
 #ifdef DEBUG
 	printf("Head file: %i\n", sizeof(completeHeader));
 #endif
 	
-	//Modify BMP header
+	//Modify BMP template header
 	Bitmap_Header.fileSize = pixmap_size + sizeof(Bitmap_Header);
 	Bitmap_Header.width = side_width;
 	Bitmap_Header.height = side_height;
@@ -263,10 +287,12 @@ int convertToBmp(const char* source)
 	fclose(binary);
 	
 	//Resize to add padding
-	resizefile(source, pixmap_size + sizeof(Bitmap_Header));
+	if (resizefile(source, pixmap_size + sizeof(Bitmap_Header)))
+		return 1;
 	
 	//Add .bmp to filename
-	appendfilename(source);
+	if (appendfilename(source))
+		return 1;
 	
 	return 0;
 }
@@ -371,8 +397,6 @@ int convertToBinary(const char* source)
 	
 	printf("Bytes read: %i\n", bytesRead);
 	
-	//Verify read
-	
 	//Go to beginning
 	fseek(bitmap, 0, SEEK_SET);
 	
@@ -389,10 +413,12 @@ int convertToBinary(const char* source)
 	fclose(bitmap);
 	
 	//Truncate file to remove padding
-	resizefile(source, originalSize);
+	if (resizefile(source, originalSize))
+		return 1;
 	
 	//Rename file
-	truncatefilename(source);
+	if (truncatefilename(source))
+		return 1;
 	
 	return 0;
 }
@@ -407,7 +433,8 @@ int  setOption(const char* option)
 	if (strcmp(option, "-q") == 0)
 	{
 		_args.prompt = Quiet;
-	} else if (strcmp(option, "-l") == 0)
+	} 
+	else if (strcmp(option, "-l") == 0)
 	{
 		_args.prompt = Loud;
 	}
@@ -422,8 +449,6 @@ int  setOption(const char* option)
 int main(int argc, char **argv)
 {	
 	char* source;
-	
-	
 	
 	if (argc == 1) //No command line arguments supplied, error.
 	{

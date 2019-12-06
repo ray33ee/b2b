@@ -1,3 +1,9 @@
+Version 2.0.4
+	- Renaming of files now encapsulated in function
+	- Added platform-independent code
+	- Using rename function instead of calling move exe
+	- Functions now propagate error codes and display error messages
+
 Version 2.0.3
 	- Added comments 
 	- Completed bitmap checks for bitmap to binary conversion
