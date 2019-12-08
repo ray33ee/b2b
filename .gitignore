@@ -2,4 +2,7 @@
 file
 *.o
 *.exe
-files/*.*
+files
+cmake-build-debug
+.idea
+CMakeLists.txt

@@ -75,16 +75,6 @@ struct CompleteHeader
 	struct BTBHeader btb;
 } completeHeader;
 
-//Enumerates verbosity and whether or not the user is to be prompted for input
-enum Prompt { Loud, Quiet };
-
-//Structure containing the options used 
-struct Options
-{
-	enum Prompt prompt;
-} _args = { Loud };
-
-
 //Platform independent function to resize file at path to size bytes
 int resizefile(const char* path, int size)
 {
@@ -120,10 +110,10 @@ int resizefile(const char* path, int size)
 	}
 
 #else
-	if (!truncate(path, size))
+	if (truncate(path, size))
 	{
 		printf("Error: Linux call to truncate() failed with error code %i - %s\n", errno, strerror(errno));
-		return 1
+		return 1;
 	}
 	
 #endif
@@ -139,7 +129,7 @@ int appendfilename(const char* path)
 	strcpy(new, path);
 	strcat(new, ".bmp");
 	
-	if (!rename(path, new))
+	if (rename(path, new))
 	{
 		printf("Error: Could not append file name. Error %i - %s\n", errno, strerror(errno));
 		return 1;
@@ -157,7 +147,7 @@ int truncatefilename(const char* path)
 	
 	newpath[strlen(path) - 4] = '\0'; //Truncate a string the fun way!	
 	
-	if (!rename(path, newpath))
+	if (rename(path, newpath))
 	{
 		printf("Error: Could not truncate file name. Error %i - %s\n", errno, strerror(errno));
 		return 1;
@@ -200,8 +190,11 @@ int convertToBmp(const char* source)
 	
 	if (binary == NULL)	
 	{
-		printf("Error in convertToBmp %i - %s\n", errno, strerror(errno));
-		return -1;
+		if (errno == 2)
+			printf("Error in convertToBmp %i - %s \"%s\"\n", errno, strerror(errno), source);
+		else
+			printf("Error in convertToBmp %i - %s\n", errno, strerror(errno));
+		return -2;
 	}
 	
 	//Get size of file to convert
@@ -212,7 +205,7 @@ int convertToBmp(const char* source)
 	
 	int side_height = getHeight(filesize, side_width);
 	
-#ifdef DEBUG
+#ifdef _DEBUG
 	printf("Pixmap size: %i x %i\n", side_width, side_height);
 #endif
 	
@@ -221,11 +214,8 @@ int convertToBmp(const char* source)
 	
 	btbHeader.paddingSize = pixmap_size - filesize - sizeof(btbHeader);
 	
-#ifdef DEBUG
+#ifdef _DEBUG
 	printf("Padding size: %i\n", btbHeader.paddingSize);
-#endif
-	
-#ifdef DEBUG
 	printf("File size: %i\n", filesize);
 #endif
 	
@@ -258,8 +248,8 @@ int convertToBmp(const char* source)
 		return 1;
 	}
 	
-#ifdef DEBUG
-	printf("Head file: %i\n", sizeof(completeHeader));
+#ifdef _DEBUG
+	printf("Head file: %i\n", (int)sizeof(completeHeader));
 #endif
 	
 	//Modify BMP template header
@@ -309,7 +299,10 @@ int convertToBinary(const char* source)
 	
 	if (bitmap == NULL)	
 	{
-		printf("Error in convertToBinary %i - %s\n", errno, strerror(errno));
+		if (errno == 2)
+			printf("Error in convertToBinary %i - %s \"%s\"\n", errno, strerror(errno), source);
+		else
+			printf("Error in convertToBinary %i - %s\n", errno, strerror(errno));
 		return -1;
 	}	
 	
@@ -327,7 +320,7 @@ int convertToBinary(const char* source)
 	//Get the size of padding
 	int padding_size = completeHeader.btb.paddingSize;
 	
-#ifdef DEBUG
+#ifdef _DEBUG
 	printf("Padding: %i\n", padding_size);
 #endif
 		
@@ -378,7 +371,7 @@ int convertToBinary(const char* source)
 	if (originalSize < sizeof(completeHeader)) //If the original size is smaller than the header, then the headLocation must be at the end of the completeHeader
 		headLocation = sizeof(completeHeader);
 	
-#ifdef DEBUG
+#ifdef _DEBUG
 	printf("Head Location: %i\n", headLocation);
 #endif
 	
@@ -395,7 +388,9 @@ int convertToBinary(const char* source)
 		return 1;
 	}
 	
+#ifdef _DEBUG
 	printf("Bytes read: %i\n", bytesRead);
+#endif
 	
 	//Go to beginning
 	fseek(bitmap, 0, SEEK_SET);
@@ -423,64 +418,26 @@ int convertToBinary(const char* source)
 	return 0;
 }
 
-int isOption(const char* arg)
-{
-	return (int)(arg[0] == '-');
-}
-
-int  setOption(const char* option)
-{	
-	if (strcmp(option, "-q") == 0)
-	{
-		_args.prompt = Quiet;
-	} 
-	else if (strcmp(option, "-l") == 0)
-	{
-		_args.prompt = Loud;
-	}
-	else
-	{
-		printf("Invalid command line option %s\n", option);
-		return -1;
-	}
-	return 0;
-}
-
 int main(int argc, char **argv)
 {	
 	char* source;
 	
 	if (argc == 1) //No command line arguments supplied, error.
 	{
-		printf("No input file. Program terminated.\n");
+		printf("Error: No input file. Program terminated.\n");
 		return 1;
 	}
 	else if (argc == 2) //One argument supplied.
 	{
-		if (isOption(argv[1]))
-		{
-			printf("At least one path must be supplied\n");
-			return 1;
-		}
-		
 		source = argv[1];
-		
 	}
-	else if (argc >= 3) // two args. Option and path, or path and option
+	else if (argc >= 3) // two args. Invalid
 	{		
-		if (isOption(argv[2]))
-		{
-			printf("Options must be listed before path.\n");
-			return 1;
-		}
-		
-		setOption(argv[1]);
-		source = argv[2];		
+		printf("Error: Only a single argument is accepted.\n");
 	}	
 	
-#ifdef DEBUG
+#ifdef _DEBUG
 	printf("Source     : %s\n", source);
-	printf("Prompt     : %s\n", (_args.prompt == Quiet ? "Quiet" : "Loud"));
 #endif
 	
 	//Get last 4 characters of source as string

@@ -1,3 +1,11 @@
+Version 2.0.5
+	- Return values of linux commands were being checked incorrectly 
+	- Makefile amended to include -lm in linking
+	- Created readme
+	- Verbosity now decided at compile time via DEBUG preprocessor macro
+	- More helpful error message displayed if fopen fails.
+	- Updated .gitignore
+
 Version 2.0.4
 	- Renaming of files now encapsulated in function
 	- Added platform-independent code

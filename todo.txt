@@ -1,6 +1,5 @@
 To do list:
-	- Add -q argument that engages quiet mode. This will stop user prompts. THis means that if the output file already exists, it will be overwritten.
-	- Write code that works for Linux and Windows
-	- Test code on Linux and windows
+	- Use CMake to create platform independent makefile (currently using Windows' 'del' command in makefile, which will not work in Linux)
+	- Send disnostic output and error messages through special stream (stderr?)
 
 
