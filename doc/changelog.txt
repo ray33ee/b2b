@@ -1,3 +1,6 @@
+Version 2.1.0
+	- Geany file removed from repo
+
 Version 2.0.6
 	- Updated directory structure
 	- 'test' function added to makefile
