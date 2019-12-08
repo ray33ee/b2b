@@ -6,14 +6,28 @@ APP = tobmp
 
 MAIN = main
 
-build : $(MAIN).o
-	$(CC) $(FLAGS) -o "$(APP)" "$(MAIN).o" -lm
+TEST = t.exe
 
-$(MAIN).o : $(MAIN).c
-	$(CC) $(FLAGS) -c "$(MAIN).c"
+DELETE = del /q
+COPY = copy
+COMPARE = ECHO n|comp
+
+
+build : .\obj\$(MAIN).o
+	$(CC) $(FLAGS) -o ".\bin\$(APP)" ".\obj\$(MAIN).o" -lm
+
+.\obj\$(MAIN).o : .\src\$(MAIN).c
+	$(CC) $(FLAGS) -c ".\src\$(MAIN).c" -o ".\obj\$(MAIN).o"
 	
 clean : 
-	del /q "$(MAIN).o" "$(APP).exe"
+	$(DELETE) ".\obj\$(MAIN).o" ".\bin\$(APP).exe"
+
+test : 
+	$(COPY) ".\etc\$(TEST)" ".\etc\$(TEST).bak"
+	.\bin\$(APP) ".\etc\$(TEST)"
+	.\bin\$(APP) ".\etc\$(TEST).bmp"
+	$(COMPARE) ".\etc\$(TEST)" ".\etc\$(TEST).bak"
+	
 
 run : 
-	$(APP) ".\files\t.exe.bmp"
+	.\bin\$(APP) ".\etc\t.exe.bmp"

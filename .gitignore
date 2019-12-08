@@ -1,8 +1,4 @@
-*.bmp
-file
-*.o
-*.exe
-files
-cmake-build-debug
-.idea
-CMakeLists.txt
+etc
+bin
+obj
+tobmp.geany

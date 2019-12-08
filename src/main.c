@@ -18,7 +18,6 @@
 #include <windows.h>
 #else
 #include <unistd.h>
-#include <errno.h>
 #endif
 
 const int BYTES_PER_PIXEL = 4; // The number of bytes used to represent the length of padding
@@ -84,35 +83,35 @@ int resizefile(const char* path, int size)
 	
 	if (file == INVALID_HANDLE_VALUE)
 	{
-		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
+		fprintf(stderr, "Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
 		return 1;
 	}
 	
 	//Set file pointer to new file size
 	if (SetFilePointer(file, size, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER)
 	{
-		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
+		fprintf(stderr, "Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
 		return 1;
 	}
 	
 	//Set end of file to position of file pointer
 	if (!SetEndOfFile(file))
 	{
-		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
+		fprintf(stderr, "Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
 		return 1;
 	}
 	
 	//Close file
 	if (!CloseHandle(file))
 	{
-		printf("Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
+		fprintf(stderr, "Error: Windows API returned error code %li. Visit 'https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes' for the error code description.\n", GetLastError());
 		return 1;
 	}
 
 #else
 	if (truncate(path, size))
 	{
-		printf("Error: Linux call to truncate() failed with error code %i - %s\n", errno, strerror(errno));
+		fprintf(stderr, "Error: Linux call to truncate() failed with error code %i - %s\n", errno, strerror(errno));
 		return 1;
 	}
 	
@@ -131,7 +130,7 @@ int appendfilename(const char* path)
 	
 	if (rename(path, new))
 	{
-		printf("Error: Could not append file name. Error %i - %s\n", errno, strerror(errno));
+		fprintf(stderr, "Error: Could not append file name. Error %i - %s\n", errno, strerror(errno));
 		return 1;
 	}
 	
@@ -149,7 +148,7 @@ int truncatefilename(const char* path)
 	
 	if (rename(path, newpath))
 	{
-		printf("Error: Could not truncate file name. Error %i - %s\n", errno, strerror(errno));
+		fprintf(stderr, "Error: Could not truncate file name. Error %i - %s\n", errno, strerror(errno));
 		return 1;
 	}
 	
@@ -191,9 +190,9 @@ int convertToBmp(const char* source)
 	if (binary == NULL)	
 	{
 		if (errno == 2)
-			printf("Error in convertToBmp %i - %s \"%s\"\n", errno, strerror(errno), source);
+			fprintf(stderr, "Error in convertToBmp %i - %s \"%s\"\n", errno, strerror(errno), source);
 		else
-			printf("Error in convertToBmp %i - %s\n", errno, strerror(errno));
+			fprintf(stderr, "Error in convertToBmp %i - %s\n", errno, strerror(errno));
 		return -2;
 	}
 	
@@ -234,7 +233,7 @@ int convertToBmp(const char* source)
 	fread(&completeHeader, 1, sizeof(completeHeader), binary);
 	if (ferror(binary))
 	{
-		printf("Error: Could not read first block for\n");
+		fprintf(stderr, "Error: Could not read first block for\n");
 		return 1;
 	}
 	
@@ -244,7 +243,7 @@ int convertToBmp(const char* source)
 	fwrite(&completeHeader,  sizeof(completeHeader), 1, binary);
 	if (ferror(binary))
 	{
-		printf("Error: Could not append first block\n");
+		fprintf(stderr, "Error: Could not append first block\n");
 		return 1;
 	}
 	
@@ -269,7 +268,7 @@ int convertToBmp(const char* source)
 	
 	if (ferror(binary))
 	{
-		printf("Error: Could not write BMP or BTB headers\n");
+		fprintf(stderr, "Error: Could not write BMP or BTB headers\n");
 		return 1;
 	}
 		
@@ -300,9 +299,9 @@ int convertToBinary(const char* source)
 	if (bitmap == NULL)	
 	{
 		if (errno == 2)
-			printf("Error in convertToBinary %i - %s \"%s\"\n", errno, strerror(errno), source);
+			fprintf(stderr, "Error in convertToBinary %i - %s \"%s\"\n", errno, strerror(errno), source);
 		else
-			printf("Error in convertToBinary %i - %s\n", errno, strerror(errno));
+			fprintf(stderr, "Error in convertToBinary %i - %s\n", errno, strerror(errno));
 		return -1;
 	}	
 	
@@ -313,7 +312,7 @@ int convertToBinary(const char* source)
 	
 	if (ferror(bitmap))
 	{
-		printf("Error: Could not read bitmap header\n");
+		fprintf(stderr, "Error: Could not read bitmap header\n");
 		return 1;
 	}
 	
@@ -328,28 +327,28 @@ int convertToBinary(const char* source)
 	//		Check first few characters are BM
 	if (completeHeader.bmp.ID != Bitmap_Header.ID)
 	{
-		printf("Error: Invalid bitmap file (No BM signature)\n");
+		fprintf(stderr, "Error: Invalid bitmap file (No BM signature)\n");
 		return 1;
 	}
 	
 	//		Check the DIB size is correct, as toBMP uses only Bitmap header v4
 	if (completeHeader.bmp.DIBSize != Bitmap_Header.DIBSize)
 	{
-		printf("Bitmap file not supported\n");
+		fprintf(stderr, "Error: Bitmap file not supported\n");
 		return 1;
 	}
 	
 	//		Check padding isnt larger than pixmap
 	if (padding_size >= completeHeader.bmp.pixmapSize)
 	{
-		printf("Error: Invalid bitmap file (bad padding value)\n");
+		fprintf(stderr, "Error: Invalid bitmap file (bad padding value)\n");
 		return 1;
 	}
 
 	//		Check signature
 	if (memcmp(&completeHeader.btb.signature, &btbHeader.signature, sizeof(btbHeader.signature)))
 	{
-		printf("Error: Invalid bitmap file (bad BTB signature)\n");
+		fprintf(stderr, "Error: Invalid bitmap file (bad BTB signature)\n");
 		return 1;
 	}
 	
@@ -359,7 +358,7 @@ int convertToBinary(const char* source)
 	
 	if (calculatedSize != filesize || completeHeader.bmp.fileSize != filesize)
 	{
-		printf("Error: Invalid bitmap file (bad bitmap metadata)\n");
+		fprintf(stderr, "Error: Invalid bitmap file (bad bitmap metadata)\n");
 		return 1;
 	}
 	
@@ -384,7 +383,7 @@ int convertToBinary(const char* source)
 	
 	if (ferror(bitmap))
 	{
-		printf("Error: Could not read head\n");
+		fprintf(stderr, "Error: Could not read head\n");
 		return 1;
 	}
 	
@@ -400,7 +399,7 @@ int convertToBinary(const char* source)
 	
 	if (ferror(bitmap))
 	{
-		printf("Error: Could not write head to beginning\n");
+		fprintf(stderr, "Error: Could not write head to beginning\n");
 		return 1;
 	}
 	
@@ -424,7 +423,7 @@ int main(int argc, char **argv)
 	
 	if (argc == 1) //No command line arguments supplied, error.
 	{
-		printf("Error: No input file. Program terminated.\n");
+		fprintf(stderr, "Error: No input file. Program terminated.\n");
 		return 1;
 	}
 	else if (argc == 2) //One argument supplied.
@@ -433,7 +432,7 @@ int main(int argc, char **argv)
 	}
 	else if (argc >= 3) // two args. Invalid
 	{		
-		printf("Error: Only a single argument is accepted.\n");
+		fprintf(stderr, "Error: Only a single argument is accepted.\n");
 	}	
 	
 #ifdef _DEBUG
@@ -458,7 +457,7 @@ int main(int argc, char **argv)
 	
 	if (result)
 	{
-		printf("Conversion failed.\n");
+		fprintf(stderr, "Conversion failed.\n");
 		return 1;
 	}
 		

@@ -1,5 +1,4 @@
 To do list:
 	- Use CMake to create platform independent makefile (currently using Windows' 'del' command in makefile, which will not work in Linux)
-	- Send disnostic output and error messages through special stream (stderr?)
 
 

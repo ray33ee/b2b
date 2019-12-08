@@ -1,3 +1,8 @@
+Version 2.0.6
+	- Updated directory structure
+	- 'test' function added to makefile
+	- Error messages are now sent to stderr
+
 Version 2.0.5
 	- Return values of linux commands were being checked incorrectly 
 	- Makefile amended to include -lm in linking
