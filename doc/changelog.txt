@@ -1,3 +1,12 @@
+Version 2.1.1
+	- Bits per pixel entry in BMP header now calculated from BYTES_PER_PIXEL value
+	- Individual string buffers now replaced with global buffer
+	- DIB length and Pixmap start entries in header now calculated (instead of magic constants)
+	- Conversion from bmp now supports BitmapV5 produced by GIMP.
+	- Original header size entry added to BTB header, paving the way for backwards compatibility.
+	- Calculations in tobmp based around hard coded sizeof(complete header) size are now based on original header size from BTB header.
+	- All preliminary work for backwards compatibility is complete. All that is left is to write truncate/expand code
+
 Version 2.1.0
 	- Geany file removed from repo
 

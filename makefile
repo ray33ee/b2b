@@ -27,7 +27,9 @@ test :
 	.\bin\$(APP) ".\etc\$(TEST)"
 	.\bin\$(APP) ".\etc\$(TEST).bmp"
 	$(COMPARE) ".\etc\$(TEST)" ".\etc\$(TEST).bak"
+	$(DELETE) ".\etc\$(TEST).bak"
 	
 
 run : 
-	.\bin\$(APP) ".\etc\t.exe.bmp"
+	.\bin\$(APP) "$(TEST)"
+	.\bin\$(APP) "$(TEST).bmp"

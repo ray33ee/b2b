@@ -1,4 +1,12 @@
 To do list:
 	- Use CMake to create platform independent makefile (currently using Windows' 'del' command in makefile, which will not work in Linux)
-
+	- Implement meaningful return values that can be interpreted by parent process
+	- Improve flexibility by accepting multiple BMP formats. Do this by
+			- Variable BMP functionality only needs to be implemented when reading BMP files. Output BMP files will all be the same format
+			- Change tobmp to be compatible with gimp, change tobin to be compatible with all bmp files (at the additional cost of having to resize bmp based on header size difference)
+			- If the bitmap has been converted to a non-BitmapV5 format, add code to accept this type too. 
+				- If the bitmap header has changed size, the file will need to be resized to accomodate this.
+					- If the bitmap header is larger than the original, then the top of n bytes of the file (n is the original header size) must be copied to the beginning, 
+					  and the difference between the beginning block and the start block must be removed.
+					- If the bitmap header is smaller than the original, then space must be made at the beginning for the larger original block of data.
 

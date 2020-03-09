@@ -5,27 +5,28 @@
 
 #include <string.h> //String handling
 
-#include <stdlib.h> //Malloc
-
 #include <math.h> //ceil, sqrt
-
-#include <stdlib.h> //system
 
 #include <stdint.h> //uint32_t, uint16_t
 
-//Platform specific headers, used for file truncation and renaming
+//Platform specific headers, used for file truncation
 #ifdef _WIN32
 #include <windows.h>
 #else
 #include <unistd.h>
 #endif
 
-const int BYTES_PER_PIXEL = 4; // The number of bytes used to represent the length of padding
 
+
+#define BYTES_PER_PIXEL (4) // The number of bytes used to represent the length of padding
+#define BMP_HEADER_SIZE (14) //Size of the actual BMP header (NOT the DIB header) in bytes
+#define MAX_STRING_SIZE (150) //Since all string handling is performed on static array allocated strings, a variable containing the max string size is declared
+
+char buffer[MAX_STRING_SIZE]; //Buffer for string operations
 
 //Force compiler to use 2 byte packing
 #pragma pack(2)
-struct BitmapV4Header
+struct BitmapV5Header
 {
 	//BMP Header
 	uint16_t ID; 			//'BM' at beginning
@@ -54,23 +55,36 @@ struct BitmapV4Header
 	uint32_t redGamma;
 	uint32_t greenGamma;
 	uint32_t blueGamma;
+	uint32_t intent;
+	uint32_t profileData;
+	uint32_t profileSize;
+	uint32_t reserved;
 	
-} 
+}
 //Template header
-Bitmap_Header = { 0x4D42, 0, 0, 0x7A, 0x6C, 0, 0, 1, 32, 3, 0, 4000, 4000, 0, 0, 0xFF0000, 0xFF00, 0xFF, 0xFF000000, 0x57696E20, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, 0, 0, 0 };
+Bitmap_Header = { 0x4D42, 0, 0, sizeof(struct BitmapV5Header), sizeof(struct BitmapV5Header) - BMP_HEADER_SIZE, 0, 0, 1, BYTES_PER_PIXEL * 8, 3, 0, 4000, 4000, 0, 0, 0xFF0000, 0xFF00, 0xFF, 0xFF000000, 0x57696E20, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, 0, 0, 0, 0, 0, 0, 0, };
 
 //Header containing information specific to the toBmp conversion
 struct BTBHeader
 {
 	uint32_t paddingSize; 	//Size of padding, in bytes
 	uint32_t signature[4];	//4 pixel signature, stamped into every bitmap
-} btbHeader = { 0, {0x6FAFEC0D,  0x7EF10C44, 0x68E85B0B, 0x9C0FB9EF } };
+	uint32_t originalHeaderSize; //Size of DIB header and BMP header when the bitmap was created with toBMP. NOTE: We cannot use the entry in the actual header for this, as it could have changed if converted to a different BMP type. If this is the case, the original BMP header size must be known in order to recover the data.
+} btbHeader = { 0, {0x6FAFEC0D,  0x7EF10C44, 0x68E85B0B, 0x9C0FB9EF }, sizeof(Bitmap_Header) };
+
+//Force compile time assertion if BitmapV5Header and Bitmap_Header are different sizes
+/*#define CASSERT(predicate, file) _impl_CASSERT_LINE(predicate,__LINE__,file)
+#define _impl_PASTE(a,b) a##b
+#define _impl_CASSERT_LINE(predicate, line, file) \
+    typedef char _impl_PASTE(assertion_failed_##file##_,line)[2*!!(predicate)-1];
+CASSERT(sizeof(BitmapV5Header) != sizeof(Bitmap_Header), BitmapV5Header_and_Bitmap_Header_structs_must_be_the_same_size);
+*/
 
 //Head of file is used to store beginning of original file (when converting to bmp) or bitmap header and btb header (when converting back to binary)
 #pragma pack(2)
 struct CompleteHeader
 {
-	struct BitmapV4Header bmp;
+	struct BitmapV5Header bmp;
 	struct BTBHeader btb;
 } completeHeader;
 
@@ -123,12 +137,10 @@ int resizefile(const char* path, int size)
 
 int appendfilename(const char* path)
 {
-	char new[150];
+	strcpy(buffer, path);
+	strcat(buffer, ".bmp");
 	
-	strcpy(new, path);
-	strcat(new, ".bmp");
-	
-	if (rename(path, new))
+	if (rename(path, buffer))
 	{
 		fprintf(stderr, "Error: Could not append file name. Error %i - %s\n", errno, strerror(errno));
 		return 1;
@@ -140,13 +152,11 @@ int appendfilename(const char* path)
 
 int truncatefilename(const char* path)
 {
-	char newpath[150];
+	strcpy(buffer, path);
 	
-	strcpy(newpath, path);
+	buffer[strlen(path) - 4] = '\0'; //Truncate a string the fun way!	
 	
-	newpath[strlen(path) - 4] = '\0'; //Truncate a string the fun way!	
-	
-	if (rename(path, newpath))
+	if (rename(path, buffer))
 	{
 		fprintf(stderr, "Error: Could not truncate file name. Error %i - %s\n", errno, strerror(errno));
 		return 1;
@@ -308,7 +318,9 @@ int convertToBinary(const char* source)
 	//Load bitmap header into memory
 	int filesize = fsize(bitmap);
 	
-	fread(&completeHeader, sizeof(completeHeader), 1, bitmap);
+	int headerBytesRead = fread(&completeHeader, 1, sizeof(completeHeader), bitmap);
+	
+	fprintf(stderr, "Complete header read: %i bytes\n", headerBytesRead);
 	
 	if (ferror(bitmap))
 	{
@@ -331,13 +343,6 @@ int convertToBinary(const char* source)
 		return 1;
 	}
 	
-	//		Check the DIB size is correct, as toBMP uses only Bitmap header v4
-	if (completeHeader.bmp.DIBSize != Bitmap_Header.DIBSize)
-	{
-		fprintf(stderr, "Error: Bitmap file not supported\n");
-		return 1;
-	}
-	
 	//		Check padding isnt larger than pixmap
 	if (padding_size >= completeHeader.bmp.pixmapSize)
 	{
@@ -352,9 +357,26 @@ int convertToBinary(const char* source)
 		return 1;
 	}
 	
-	//		Check to make sure width, height, bpp, pixmap size, bmp and dib header size and actual size all add up
+	//		Compare the original header size (the size of the header of the bitmap created directly by tobmp). If different, another program has converted the bitmap to a different kind.
+	if (completeHeader.bmp.offset != btbHeader.originalHeaderSize)
+	{
+		fprintf(stderr, "Error: Only Bitmap V5 is currently supported (Invalid DIB header size)\n");
+		
+		if (completeHeader.bmp.DIBSize < btbHeader.originalHeaderSize)
+		{
+			//New header is smaller than original, so file must be truncated
+		}
+		else
+		{ 
+			//New header is larger than original, so file must be extended
+		}
+		
+		return 1;
+	}
 	
-	int calculatedSize = completeHeader.bmp.width * completeHeader.bmp.height * (completeHeader.bmp.bpp / 8) + completeHeader.bmp.DIBSize + 14;
+	//		Check to make sure width, height, bpp, pixmap size, bmp and dib header size and actual size all agree
+	
+	int calculatedSize = completeHeader.bmp.width * completeHeader.bmp.height * (completeHeader.bmp.bpp / 8) + completeHeader.bmp.DIBSize + BMP_HEADER_SIZE;	
 	
 	if (calculatedSize != filesize || completeHeader.bmp.fileSize != filesize)
 	{
@@ -364,11 +386,16 @@ int convertToBinary(const char* source)
 	
 	
 	//Get the location of the head and  the size of the original file
-	int headLocation = filesize - padding_size - sizeof(completeHeader);
-	int originalSize = headLocation;
+	int headLocation = filesize - padding_size - btbHeader.originalHeaderSize - sizeof(struct BTBHeader);
+	int originalSize = filesize - padding_size - completeHeader.bmp.offset - sizeof(struct BTBHeader);
 	
-	if (originalSize < sizeof(completeHeader)) //If the original size is smaller than the header, then the headLocation must be at the end of the completeHeader
-		headLocation = sizeof(completeHeader);
+	fprintf(stderr, "filesize: %i\n", filesize);
+	fprintf(stderr, "padding_size: %i\n", padding_size);
+	fprintf(stderr, "originalHeaderSize: %i\n", btbHeader.originalHeaderSize);
+	fprintf(stderr, "BTB headaer: %i\n", sizeof(struct BTBHeader));
+	
+	if (originalSize < btbHeader.originalHeaderSize + sizeof(struct BTBHeader)) //If the original size is smaller than the header, then the headLocation must be at the end of the completeHeader
+	headLocation = completeHeader.bmp.offset + sizeof(struct BTBHeader);
 	
 #ifdef _DEBUG
 	printf("Head Location: %i\n", headLocation);
@@ -378,7 +405,7 @@ int convertToBinary(const char* source)
 	fseek(bitmap, headLocation, SEEK_SET);
 	
 	//Read the head
-	int bytesRead = fread(&completeHeader, 1, sizeof(completeHeader), bitmap);
+	int bytesRead = fread(&completeHeader, 1, btbHeader.originalHeaderSize + sizeof(struct BTBHeader), bitmap);
 	
 	
 	if (ferror(bitmap))
@@ -419,6 +446,8 @@ int convertToBinary(const char* source)
 
 int main(int argc, char **argv)
 {	
+	fprintf(stderr, "sizeof %i\n", sizeof(Bitmap_Header));
+	
 	char* source;
 	
 	if (argc == 1) //No command line arguments supplied, error.
