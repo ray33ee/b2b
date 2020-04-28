@@ -1,6 +1,5 @@
 To do list:
 	- Use CMake to create platform independent makefile (currently using Windows' 'del' command in makefile, which will not work in Linux)
-	- Implement meaningful return values that can be interpreted by parent process
 	- Improve flexibility by accepting multiple BMP formats. Do this by
 			- Variable BMP functionality only needs to be implemented when reading BMP files. Output BMP files will all be the same format
 			- Change tobmp to be compatible with gimp, change tobin to be compatible with all bmp files (at the additional cost of having to resize bmp based on header size difference)

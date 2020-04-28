@@ -1,3 +1,8 @@
+Version 2.1.2
+	- Non-error messages are now printed to stdout in JSON format
+	- Application now returns meaningful return codes
+	- Return codes are properly propagated through function calls
+
 Version 2.1.1
 	- Bits per pixel entry in BMP header now calculated from BYTES_PER_PIXEL value
 	- Individual string buffers now replaced with global buffer
