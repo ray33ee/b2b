@@ -8,4 +8,5 @@ To do list:
 					- If the bitmap header is larger than the original, then the top of n bytes of the file (n is the original header size) must be copied to the beginning, 
 					  and the difference between the beginning block and the start block must be removed.
 					- If the bitmap header is smaller than the original, then space must be made at the beginning for the larger original block of data.
+	- Use 1bpp for low resolution images to make them higher resolution (as B&S won't upload images smaller than 256x256)
 

@@ -2,7 +2,7 @@ CC = gcc
 
 FLAGS = -Wall -D _DEBUG
 
-APP = tobmp
+APP = b2b
 
 MAIN = main
 
